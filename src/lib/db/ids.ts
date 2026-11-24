@@ -41,6 +41,15 @@ const prefixes = {
   quickReply: "qr",
   // 050 — notas internas del hilo
   conversationNote: "nota",
+  // 069 — API pública v1, MCP y su OAuth
+  apiKey: "ak",
+  oauthClient: "vc",
+  oauthGrant: "og",
+  oauthToken: "ot",
+  // 070 — chats fijados
+  conversationPin: "pin",
+  // 072 — reacciones a mensajes
+  messageReaction: "rx",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

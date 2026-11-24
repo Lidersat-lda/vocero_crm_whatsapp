@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { SettingsNav } from "@/components/settings/settings-nav";
-import { getSessionOrNull } from "@/lib/auth/session";
 import { canConfigure } from "@/lib/auth/roles";
+import { getSessionOrNull } from "@/lib/auth/session";
+import { apiV1Enabled } from "@/server/api-v1/flag";
 import { agendaEnabled } from "@/server/agenda/flag";
 import { atribucionEnabled } from "@/server/attribution/flag";
 import { isChannelEnabled } from "@/server/channels/enabled";
@@ -21,6 +22,8 @@ export default async function SettingsLayout({
   if (!session) redirect("/login");
   if (!canConfigure(session.role)) redirect("/inbox");
   const t = await getTranslations("settings");
+  // 069 — Ajustes → API solo existe con la bandera y para quien configura.
+  const api = apiV1Enabled() && canConfigure(session.role);
   return (
     <div className="flex h-full flex-col">
       <header className="border-b px-4 py-3 sm:px-6 sm:py-4">
@@ -34,6 +37,7 @@ export default async function SettingsLayout({
           instagram={isChannelEnabled("instagram")}
           messenger={isChannelEnabled("messenger")}
           tiktok={isChannelEnabled("tiktok")}
+          api={api}
         />
         <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
       </div>

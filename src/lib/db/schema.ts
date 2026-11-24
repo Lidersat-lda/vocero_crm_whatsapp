@@ -376,7 +376,8 @@ export const conversation = pgTable(
     aiEnabled: boolean("ai_enabled").notNull().default(true),
     handoffAt: timestamp("handoff_at"),
     handoffReason: text("handoff_reason", {
-      // 008: manual_reply = el dueño respondió desde la app del teléfono.
+      // 008: manual_reply = una persona del negocio respondió (068: desde el
+      // teléfono o desde la Bandeja).
       // hostilidad = el lead se puso agresivo y el agente se retiró.
       enum: [
         "cliente",
@@ -1399,5 +1400,196 @@ export const conversationNote = pgTable(
   },
   (t) => [
     index("conversation_note_conv_idx").on(t.organizationId, t.conversationId, t.createdAt),
+  ]
+);
+
+/**
+ * 069 — Llaves de la API pública v1 (`/api/v1/*`), detrás de la bandera `API_V1`.
+ *
+ * Cada llave es de UNA organización: la organización de cada petición sale de
+ * la llave, nunca del Host ni del cuerpo. Solo se guarda el sha256 de la llave
+ * completa; el valor se enseña una sola vez, al crearla. Para reconocerla en
+ * la lista quedan el prefijo visible y los últimos 4.
+ *
+ * La llave actúa con los permisos de quien la creó, recortados a sus
+ * `scopes`: si esa persona pierde el acceso a la organización, la llave deja
+ * de servir sin que nadie tenga que acordarse de revocarla.
+ */
+export const apiKey = pgTable(
+  "api_key",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** `vk_` + los primeros caracteres: lo único que se reconoce a simple vista. */
+    prefix: text("prefix").notNull(),
+    last4: text("last4").notNull(),
+    /** sha256 hex de la llave completa. */
+    hash: text("hash").notNull(),
+    /** `read` · `operate` · `send` · `configure` (mandar mensajes y configurar van aparte de operar). */
+    scopes: text("scopes").array().notNull(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+    requestCount: integer("request_count").notNull().default(0),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("api_key_hash_uq").on(t.hash),
+    index("api_key_org_idx").on(t.organizationId),
+  ]
+);
+
+/**
+ * Fase 3 — OAuth para el MCP (claude.ai, ChatGPT, Claude Code sin llave).
+ *
+ * El servidor de autorización vive en el subdominio de CADA negocio: un
+ * cliente registrado en `a.vocerocrm.com` es de A y no sirve en B, y todo lo
+ * que emite queda atado a esa organización. Es otra forma de presentarse ante
+ * la misma puerta de `/api/v1`: el token actúa como la persona que lo
+ * concedió, recortado a sus permisos, igual que una llave.
+ */
+
+/** Un cliente registrado por registro dinámico (RFC 7591). Siempre público: sin secreto, con PKCE. */
+export const oauthClient = pgTable(
+  "oauth_client",
+  {
+    /** El `client_id` que ve el cliente. */
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** `client_name` tal como lo mandó el cliente: no es de fiar, se enseña junto al host de regreso. */
+    name: text("name").notNull(),
+    redirectUris: text("redirect_uris").array().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("oauth_client_org_idx").on(t.organizationId)]
+);
+
+/**
+ * Una app conectada: lo que una persona le concedió a un cliente. Es lo que
+ * se ve (y se revoca) en Ajustes → API. Revocarla mata todos sus tokens.
+ */
+export const oauthGrant = pgTable(
+  "oauth_grant",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClient.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** `read` · `operate` · `configure`. */
+    scopes: text("scopes").array().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+    requestCount: integer("request_count").notNull().default(0),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    index("oauth_grant_org_idx").on(t.organizationId),
+    index("oauth_grant_client_user_idx").on(t.clientId, t.userId),
+  ]
+);
+
+/**
+ * Códigos de autorización, tokens de acceso y de refresco. Como las llaves,
+ * solo se guarda el sha256: el valor sale una vez, en la respuesta.
+ */
+export const oauthToken = pgTable(
+  "oauth_token",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    grantId: text("grant_id")
+      .notNull()
+      .references(() => oauthGrant.id, { onDelete: "cascade" }),
+    /** `code` · `access` · `refresh`. */
+    kind: text("kind").notNull(),
+    hash: text("hash").notNull(),
+    scopes: text("scopes").array().notNull(),
+    /** Solo en `code`: PKCE (S256) y el redirect_uri exacto que se usó. */
+    codeChallenge: text("code_challenge"),
+    redirectUri: text("redirect_uri"),
+    expiresAt: timestamp("expires_at").notNull(),
+    /** Un código o un refresh se usan UNA vez; reusarlos delata un robo. */
+    usedAt: timestamp("used_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("oauth_token_hash_uq").on(t.hash),
+    index("oauth_token_grant_idx").on(t.grantId),
+  ]
+);
+
+/**
+ * 070 — Chats fijados arriba de la Bandeja, de CADA usuario: lo que fija una
+ * persona del equipo no cambia la Bandeja de las demás. Máximo 3 por usuario
+ * (lo impone `src/server/inbox/pins.ts`). Se borra con la conversación y con
+ * el usuario.
+ */
+export const conversationPin = pgTable(
+  "conversation_pin",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    pinnedAt: timestamp("pinned_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("conversation_pin_user_conv_uq").on(t.userId, t.conversationId),
+    index("conversation_pin_org_user_idx").on(t.organizationId, t.userId),
+  ]
+);
+
+/**
+ * 072 — Reacciones a un mensaje (👍 ❤️ …), del cliente o del equipo.
+ *
+ * Una por actor y mensaje: WhatsApp, Instagram y Messenger guardan UNA sola
+ * reacción del negocio por mensaje, así que el equipo es un solo actor
+ * (`user_id` dice quién la puso). Quitar la reacción borra la fila.
+ */
+export const messageReaction = pgTable(
+  "message_reaction",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => message.id, { onDelete: "cascade" }),
+    actor: text("actor", { enum: ["cliente", "equipo"] }).notNull(),
+    /** Quién del equipo la puso; null en las del cliente. */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("message_reaction_message_actor_uq").on(t.messageId, t.actor),
+    index("message_reaction_conv_idx").on(t.organizationId, t.conversationId),
   ]
 );

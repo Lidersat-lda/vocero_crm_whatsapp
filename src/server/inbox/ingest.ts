@@ -26,6 +26,9 @@ import { registrarAnuncioDeOrigen } from "@/server/attribution/store";
 import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { despachoActivo } from "@/server/brains/config";
 import { despacharAlCerebro } from "@/server/dispatch/encolar";
+import { pausarIaPorRespuestaManual } from "@/server/inbox/pausa-manual";
+import { registrarReaccionWhatsApp } from "@/server/inbox/reacciones";
+import { esReaccionable, type ReaccionDto } from "@/lib/reacciones";
 import {
   aCitaDto,
   citaDelWebhook,
@@ -287,8 +290,14 @@ export async function processMessagesValue(value: WebhookValue): Promise<void> {
   }
 
   for (const msg of value.messages ?? []) {
+    // 072: la reacción no es un mensaje nuevo: se pega al que reacciona. No
+    // abre la ventana ni despierta al cerebro.
+    if (msg.type === "reaction") {
+      await registrarReaccionWhatsApp(organizationId, msg, value.contacts);
+      continue;
+    }
     if (!SUPPORTED_TYPES.has(msg.type) && !BUTTON_REPLY_TYPES.has(msg.type)) {
-      continue; // reacciones, etc.: ignorar
+      continue; // sistema, no soportados, etc.: ignorar
     }
     const contenido = contenidoEntrante(msg);
     if (!contenido) {
@@ -409,26 +418,8 @@ async function ingestManualEcho(
     .where(eq(schema.conversation.id, conversation.id));
 
   // Pausa automática de la IA, idempotente y atómica (solo si no hay handoff).
-  const paused = await db
-    .update(schema.conversation)
-    .set({
-      aiEnabled: false,
-      handoffAt: new Date(),
-      handoffReason: "manual_reply",
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.conversation.id, conversation.id),
-        sql`${schema.conversation.handoffAt} is null`
-      )
-    )
-    .returning();
-  if (paused[0]) {
-    console.log(
-      `[webhook] respuesta manual del dueño en ${conversation.id} — IA pausada (manual_reply)`
-    );
-  }
+  // 068: la misma que usa la Bandeja (`pausa-manual.ts`).
+  await pausarIaPorRespuestaManual(organizationId, conversation.id);
 
   publish(organizationId, {
     type: "message.new",
@@ -595,7 +586,9 @@ export function serializeMessage(
   m: typeof schema.message.$inferSelect,
   media: typeof schema.mediaAsset.$inferSelect | null = null,
   /** 039: el mensaje citado ya resuelto (`resolverCitas`); null si no está. */
-  cita: CitaEncontrada | null = null
+  cita: CitaEncontrada | null = null,
+  /** 072: sus reacciones (`reaccionesDe`); un mensaje nuevo no tiene. */
+  reactions: ReaccionDto[] = []
 ) {
   return {
     id: m.id,
@@ -623,6 +616,9 @@ export function serializeMessage(
     /** 039: se le puede responder citando (tiene id en la plataforma). */
     quotable: Boolean(m.waMessageId),
     replyTo: m.replyToWaMessageId ? aCitaDto(cita) : null,
+    /** 072: tiene id en la plataforma con el que se puede reaccionar. */
+    reactable: esReaccionable(m),
+    reactions,
     createdAt: (m.waTimestamp ?? m.createdAt).toISOString(),
   };
 }

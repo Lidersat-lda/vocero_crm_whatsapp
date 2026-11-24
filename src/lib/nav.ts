@@ -114,6 +114,7 @@ export function settingsSections({
   instagram = false,
   messenger = false,
   tiktok = false,
+  api = false,
 }: {
   agenda?: boolean;
   /** 016 — "Anuncios" existe solo con la bandera ATRIBUCION. */
@@ -124,6 +125,8 @@ export function settingsSections({
   messenger?: boolean;
   /** 022 — "TikTok", igual: solo con el canal en CHANNELS. */
   tiktok?: boolean;
+  /** 069 — "API" solo con `API_V1=on` y para quien configura. */
+  api?: boolean;
 }): SettingsSection[] {
   const canales: SettingsLink[] = [];
   // 023 — "Estado" reúne todos los canales; con WhatsApp solo no aporta nada
@@ -152,6 +155,8 @@ export function settingsSections({
     { href: "/settings/team", labelKey: "linkTeam" },
   ];
   if (atribucion) negocio.push({ href: "/settings/ads", labelKey: "linkAds" });
+  // 069 — llaves de la API, el MCP y las apps conectadas (claude.ai, ChatGPT…).
+  if (api) negocio.push({ href: "/settings/api", labelKey: "linkApi" });
 
   return [
     { titleKey: "sectionChannels", links: canales },
