@@ -10,41 +10,52 @@ import {
  * #87 — El menú agrupado y Ajustes en tres secciones. Lo que aparece y lo
  * que no lo deciden las banderas (`AGENDA`, `CHANNELS`, `ATRIBUCION`) y el
  * rol; aquí se afirma sobre el modelo, sin dibujar nada.
+ *
+ * 069 — Los textos salen de i18n: aquí se afirma sobre `labelKey`/`titleKey`,
+ * no sobre palabras. La traducción se verifica en el guión E2E.
  */
 
-const labels = (groups: { items: { label: string }[] }[]) =>
-  groups.map((g) => g.items.map((i) => i.label));
+const labelKeys = (groups: { items: { labelKey: string }[] }[]) =>
+  groups.map((g) => g.items.map((i) => i.labelKey));
 
 describe("barra lateral agrupada", () => {
-  it("con todo apagado y como miembro: Trabajo, Agente y Resultados", () => {
+  it("miembro: solo el grupo Trabajo con las tres pestañas de operación", () => {
     const groups = appNavGroups({ role: "member" });
-    expect(groups.map((g) => g.title)).toEqual(["Trabajo", "Agente", undefined]);
-    expect(labels(groups)).toEqual([
-      ["Bandeja", "Pipeline", "Contactos"],
-      ["Agente", "Laboratorio"],
-      ["Resultados"],
+    expect(groups.map((g) => g.titleKey)).toEqual(["groupWork"]);
+    expect(labelKeys(groups)).toEqual([["inbox", "pipeline", "contacts"]]);
+  });
+
+  it("miembro con AGENDA encendida: sigue sin ver Citas", () => {
+    const groups = appNavGroups({ agenda: true, role: "member" });
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.items.map((i) => i.labelKey)).toEqual(["inbox", "pipeline", "contacts"]);
+  });
+
+  it("owner: Trabajo, Agente y Resultados", () => {
+    const groups = appNavGroups({ role: "owner" });
+    expect(groups.map((g) => g.titleKey)).toEqual(["groupWork", "groupAgent", undefined]);
+    expect(labelKeys(groups)).toEqual([
+      ["inbox", "pipeline", "contacts"],
+      ["onboarding", "agent", "lab"],
+      ["results"],
     ]);
   });
 
-  it("AGENDA añade Citas al final de Trabajo", () => {
-    const [trabajo] = appNavGroups({ agenda: true, role: "member" });
-    expect(trabajo!.items.map((i) => i.label)).toEqual([
-      "Bandeja",
-      "Pipeline",
-      "Contactos",
-      "Citas",
+  it("AGENDA añade Citas al final de Trabajo para quien configura", () => {
+    const [trabajo] = appNavGroups({ agenda: true, role: "owner" });
+    expect(trabajo!.items.map((i) => i.labelKey)).toEqual([
+      "inbox",
+      "pipeline",
+      "contacts",
+      "bookings",
     ]);
     expect(trabajo!.items.at(-1)!.href).toBe("/bookings");
   });
 
-  it("la guía de inicio abre el grupo Agente solo para quien configura", () => {
+  it("la guía de inicio abre el grupo Agente para owner/admin", () => {
     for (const role of ["owner", "admin"]) {
       const agente = appNavGroups({ role })[1]!;
-      expect(agente.items[0]).toMatchObject({ href: "/onboarding", label: "Guía de inicio" });
-    }
-    for (const role of ["member", null, undefined]) {
-      const agente = appNavGroups({ role })[1]!;
-      expect(agente.items.map((i) => i.href)).not.toContain("/onboarding");
+      expect(agente.items[0]).toMatchObject({ href: "/onboarding", labelKey: "onboarding" });
     }
   });
 
@@ -67,44 +78,62 @@ describe("barra lateral agrupada", () => {
 });
 
 describe("ajustes en tres secciones", () => {
-  const links = (s: { title: string; links: { label: string }[] }[]) =>
-    Object.fromEntries(s.map((x) => [x.title, x.links.map((l) => l.label)]));
+  const links = (s: { titleKey: string; links: { labelKey: string }[] }[]) =>
+    Object.fromEntries(s.map((x) => [x.titleKey, x.links.map((l) => l.labelKey)]));
 
   it("con todo apagado: Canales, Agente y Negocio con lo mínimo", () => {
     const sections = settingsSections({});
-    expect(sections.map((s) => s.title)).toEqual(["Canales", "Agente", "Negocio"]);
+    expect(sections.map((s) => s.titleKey)).toEqual([
+      "sectionChannels",
+      "sectionAgent",
+      "sectionBusiness",
+    ]);
     expect(links(sections)).toEqual({
-      Canales: ["WhatsApp"],
-      Agente: ["IA"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Equipo"],
+      sectionChannels: ["linkWhatsapp"],
+      sectionAgent: ["linkAi"],
+      sectionBusiness: [
+        "linkBranding",
+        "linkAppearance",
+        "linkLanguage",
+        "linkTemplates",
+        "linkQuickReplies",
+        "linkTeam",
+      ],
     });
   });
 
   it("cada bandera añade su enlace en su sección y en ninguna otra", () => {
     // 023: con un canal social, "Estado" abre la sección.
     expect(links(settingsSections({ messenger: true }))).toEqual({
-      Canales: ["Estado", "WhatsApp", "Messenger"],
-      Agente: ["IA"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Equipo"],
+      sectionChannels: ["linkStatus", "linkWhatsapp", "linkMessenger"],
+      sectionAgent: ["linkAi"],
+      sectionBusiness: [
+        "linkBranding",
+        "linkAppearance",
+        "linkLanguage",
+        "linkTemplates",
+        "linkQuickReplies",
+        "linkTeam",
+      ],
     });
-    expect(links(settingsSections({ instagram: true })).Canales).toEqual([
-      "Estado",
-      "WhatsApp",
-      "Instagram",
+    expect(links(settingsSections({ instagram: true })).sectionChannels).toEqual([
+      "linkStatus",
+      "linkWhatsapp",
+      "linkInstagram",
     ]);
     expect(
-      links(settingsSections({ instagram: true, messenger: true, tiktok: true })).Canales
-    ).toEqual(["Estado", "WhatsApp", "Instagram", "Messenger", "TikTok"]);
-    expect(links(settingsSections({ agenda: true }))).toEqual({
-      Canales: ["WhatsApp"],
-      Agente: ["IA", "Agenda"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Equipo"],
-    });
-    expect(links(settingsSections({ atribucion: true }))).toEqual({
-      Canales: ["WhatsApp"],
-      Agente: ["IA"],
-      Negocio: ["Marca", "Apariencia", "Plantillas", "Respuestas rápidas", "Equipo", "Anuncios"],
-    });
+      links(settingsSections({ instagram: true, messenger: true, tiktok: true })).sectionChannels
+    ).toEqual(["linkStatus", "linkWhatsapp", "linkInstagram", "linkMessenger", "linkTiktok"]);
+    expect(links(settingsSections({ agenda: true })).sectionAgent).toEqual(["linkAi", "linkCalendar"]);
+    expect(links(settingsSections({ atribucion: true })).sectionBusiness).toEqual([
+      "linkBranding",
+      "linkAppearance",
+      "linkLanguage",
+      "linkTemplates",
+      "linkQuickReplies",
+      "linkTeam",
+      "linkAds",
+    ]);
   });
 
   it("con todo encendido, cada pantalla de Ajustes tiene exactamente un enlace", () => {
@@ -129,6 +158,7 @@ describe("ajustes en tres secciones", () => {
         "/settings/calendar",
         "/settings/branding",
         "/settings/appearance",
+        "/settings/language",
         "/settings/templates",
         "/settings/quick-replies",
         "/settings/team",

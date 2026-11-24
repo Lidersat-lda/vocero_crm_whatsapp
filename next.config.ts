@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 import { readFileSync } from "node:fs";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// 069 — next-intl: el idioma de la UI lo decide el negocio en runtime; el
+// plugin solo conecta `src/i18n/request.ts` con el framework.
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 // La versión sale de package.json y no de una constante aparte: duplicarla es
 // tenerla desactualizada en uno de los dos lados, y justo esta no puede mentir.
@@ -29,4 +34,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

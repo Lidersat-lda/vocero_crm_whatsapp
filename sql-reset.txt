@@ -1,0 +1,10 @@
+﻿
+Hash verificado. Pega este comando en la terminal del contenedor de Postgres
+(en Coolify: el recurso de la base ÔåÆ pesta├▒a Terminal):
+
+psql -U postgres -d vocero -c "UPDATE \"account\" SET \"password\" = 'acd3c6e4dc1ea0d7e81bf3f2975b5022:367650c2d4ab730f38f74a95d8764e95794bf53442a9c2ed94e7fd918d835d798530adcd80ac13bc7154826e4f13106402aeb1c943eb0ca51062084e05a81d6e', \"updated_at\" = now() WHERE \"provider_id\" = 'credential' AND \"user_id\" = (SELECT \"id\" FROM \"user\" WHERE lower(\"email\") = lower('walter.maidana@lidersat.com'));"
+
+Debe responder: UPDATE 1
+Si responde UPDATE 0, el correo no coincide. M├¡ralos con:
+psql -U postgres -d vocero -c 'SELECT email FROM "user";'
+

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
+import { canConfigure } from "@/lib/auth/roles";
 import { parseRangeQuery } from "@/lib/time/calendar";
 import { agendaDisabledResponse, agendaEnabled } from "@/server/agenda/flag";
 import { listBookings, listBookingsInRange } from "@/server/agenda/queries";
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
  * `invalid_range`.
  */
 export const GET = withAuth(async (session, req: Request) => {
+  if (!canConfigure(session.role)) return apiError(403, "forbidden", "Solo quien configura ve las citas.");
   if (!agendaEnabled()) return agendaDisabledResponse();
   const url = new URL(req.url);
   const query = parseRangeQuery(url.searchParams.get("from"), url.searchParams.get("to"));
@@ -72,6 +74,7 @@ const postSchema = z.discriminatedUnion("kind", [
  * anti doble-booking sí aplican igual.
  */
 export const POST = withAuth(async (session, req: Request) => {
+  if (!canConfigure(session.role)) return apiError(403, "forbidden", "Solo quien configura agenda citas.");
   if (!agendaEnabled()) return agendaDisabledResponse();
   const body = await parseBody(req, postSchema);
   if (!body.ok) return body.response;

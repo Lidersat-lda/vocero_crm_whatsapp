@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { BookingsClient } from "@/components/bookings/bookings-client";
 import { getSessionOrNull } from "@/lib/auth/session";
+import { canConfigure } from "@/lib/auth/roles";
 import { clampListTo, isCalendarView, isIsoDate } from "@/lib/time/calendar";
 import { todayInTz } from "@/lib/time/slots";
 import { agendaEnabled } from "@/server/agenda/flag";
@@ -27,6 +28,7 @@ export default async function BookingsPage({
   if (!agendaEnabled()) notFound();
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
+  if (!canConfigure(session.role)) redirect("/inbox");
 
   const settings = await getSettings(session.organizationId);
   const params = await searchParams;

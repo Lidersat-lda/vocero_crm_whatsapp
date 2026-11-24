@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import { accentCssVariables, DEFAULT_BRANDING } from "@/lib/branding";
 import { faviconHref } from "@/lib/favicon";
 import { appIconHref, NAV_INK, shortAppName } from "@/lib/pwa";
@@ -96,9 +98,13 @@ export default async function RootLayout({
   const { apariencia } = await aparienciaActual().catch(() => ({
     apariencia: { tema: "menta", letra: "urbanist", tamano: "normal", densidad: "normal" } as const,
   }));
+  // 069 — El idioma del negocio viaja en el HTML del servidor. `getLocale` lo
+  // resuelve con `src/i18n/request.ts` y `getMessages` carga el diccionario.
+  const locale = await getLocale();
+  const messages = await getMessages();
   return (
     <html
-      lang="es"
+      lang={locale}
       className={`${urbanist.variable} ${archivo.variable} ${inter.variable} ${plexSans.variable} ${instrumentSerif.variable} ${plexMono.variable}`}
       // La preferencia siempre es explícita: viaja resuelta en el HTML del
       // servidor, así que no hay divergencia con el cliente ni parpadeo.
@@ -116,7 +122,9 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-sans">
-        {children}
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          {children}
+        </NextIntlClientProvider>
         <RegistrarServiceWorker />
       </body>
     </html>

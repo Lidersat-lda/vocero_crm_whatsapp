@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { AlertTriangle, Bell, BellOff, LogOut, X } from "lucide-react";
 import { BrandTile } from "@/components/brand-mark";
 import { BotonInstalar } from "@/components/pwa";
@@ -20,6 +21,7 @@ import type { Branding } from "@/lib/branding";
 import type { Apariencia } from "@/lib/temas";
 import { cn, initials } from "@/lib/utils";
 import { appNavGroups, isNavActive, SETTINGS_ITEM, type NavItem } from "@/lib/nav";
+import { canConfigure } from "@/lib/auth/roles";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
 import {
@@ -74,7 +76,7 @@ export function AppNav({
   apariencia,
   commit,
   agenda = false,
-  kicker = "CRM · WhatsApp",
+  kicker,
   open = false,
   onClose,
 }: {
@@ -102,6 +104,8 @@ export function AppNav({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useTranslations("nav");
+  const kickerLabel = kicker ?? t("kickerCrm");
   const [unread, setUnread] = useState(0);
   // 045 — Chats con algo sin leer: es lo que WhatsApp cuenta en la pestaña.
   const [chats, setChats] = useState(0);
@@ -192,9 +196,11 @@ export function AppNav({
   // #87 — Qué hay en el menú y en qué grupo lo decide `appNavGroups`; aquí
   // solo se pinta.
   const groups = appNavGroups({ agenda, role });
+  const puedeConfigurar = canConfigure(role);
 
   function renderItem(item: NavItem) {
     const active = isNavActive(pathname, item.href);
+    const label = t(item.labelKey);
     return (
       <Link
         key={item.href}
@@ -207,7 +213,7 @@ export function AppNav({
           strokeWidth={1.8}
           aria-hidden
         />
-        <span className="flex-1">{item.label}</span>
+        <span className="flex-1">{label}</span>
         {item.badge && unread > 0 && (
           <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1.5 text-[10.5px] font-bold text-brand-fg">
             {unread}
@@ -232,9 +238,9 @@ export function AppNav({
         setSonido(v);
         guardarSonido(v);
       }}
-      aria-label={sonido ? "Sonido de mensajes: activado" : "Sonido de mensajes: silenciado"}
+      aria-label={sonido ? t("soundOn") : t("soundOff")}
       aria-pressed={sonido}
-      title={sonido ? "Silenciar el sonido de mensajes nuevos" : "Activar el sonido de mensajes nuevos"}
+      title={sonido ? t("soundMute") : t("soundUnmute")}
       className="rounded p-1 text-text-3 transition-colors hover:text-foreground"
     >
       {sonido ? (
@@ -266,6 +272,7 @@ export function AppNav({
       unread={unread}
       userName={userName}
       role={role}
+      puedeConfigurar={puedeConfigurar}
       apariencia={apariencia}
       campana={campana}
       version={versionTexto}
@@ -295,26 +302,26 @@ export function AppNav({
             alcanzable con el pulgar. */}
         <button
           onClick={onClose}
-          aria-label="Cerrar el menú"
+          aria-label={t("closeMenu")}
           className="-ml-1 mt-0.5 rounded-md p-1.5 text-text-3 hover:bg-accent hover:text-foreground lg:hidden"
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
         <div className="min-w-0">
           <BrandLogo branding={branding} />
-          <span className="kicker mt-2 block">{kicker}</span>
+          <span className="kicker mt-2 block">{kickerLabel}</span>
         </div>
       </div>
 
       {/* Grupos con encabezado pequeño, sin letras ni colapsables: se leen
           de arriba abajo como una lista de lo que hay. Un grupo sin título
           (Resultados) es una entrada suelta separada por el espacio. */}
-      <nav className="flex flex-col gap-4" aria-label="Secciones">
+      <nav className="flex flex-col gap-4" aria-label={t("sections")}>
         {groups.map((group, i) => (
-          <div key={group.title ?? i} className="flex flex-col gap-0.5">
-            {group.title && (
+          <div key={group.titleKey ?? i} className="flex flex-col gap-0.5">
+            {group.titleKey && (
               <span className="kicker mb-1 block px-2.5" aria-hidden>
-                {group.title}
+                {t(group.titleKey)}
               </span>
             )}
             {group.items.map(renderItem)}
@@ -329,8 +336,9 @@ export function AppNav({
       <BotonActivarAvisos className={navItemClass(false)} />
       <BotonInstalar className={navItemClass(false)} />
 
-      {/* Ajustes va abajo, solo: no es trabajo del día. */}
-      {renderItem(SETTINGS_ITEM)}
+      {/* Ajustes va abajo, solo: no es trabajo del día.
+          Miembro no lo ve: no puede configurar nada. */}
+      {puedeConfigurar && renderItem(SETTINGS_ITEM)}
 
       <div className="mt-1 flex items-center gap-2.5 rounded-sm px-2.5 py-2 hover:bg-accent">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand-text">
@@ -339,15 +347,15 @@ export function AppNav({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold">{userName}</span>
           <span className="block truncate text-[11px] text-text-3">
-            {role === "owner" ? "Propietario" : "Equipo"} · En línea
+            {role === "owner" ? t("roleOwner") : t("roleMember")} · {t("online")}
           </span>
         </span>
         <span className="flex shrink-0 items-center">
           {campana}
           <ThemeToggle initial={apariencia} />
           <button
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
+            aria-label={t("logout")}
+            title={t("logout")}
             className="rounded p-1 text-text-3 hover:text-foreground"
             onClick={() => void salir()}
           >
@@ -392,6 +400,7 @@ function Riel({
   unread,
   userName,
   role,
+  puedeConfigurar,
   apariencia,
   campana,
   version,
@@ -404,6 +413,7 @@ function Riel({
   unread: number;
   userName: string;
   role: string;
+  puedeConfigurar: boolean;
   apariencia: Apariencia;
   campana: React.ReactNode;
   version: React.ReactNode;
@@ -428,14 +438,16 @@ function Riel({
     };
   }, [cuenta]);
 
+  const t = useTranslations("nav");
   const boton = (item: NavItem) => {
     const active = isNavActive(pathname, item.href);
+    const label = t(item.labelKey);
     return (
       <Link
         key={item.href}
         href={item.href}
-        aria-label={item.label}
-        title={item.label}
+        aria-label={label}
+        title={label}
         aria-current={active ? "page" : undefined}
         className={cn(
           "relative flex h-11 w-11 items-center justify-center rounded-full border transition-colors",
@@ -457,7 +469,7 @@ function Riel({
 
   return (
     <nav
-      aria-label="Secciones"
+      aria-label={t("sections")}
       className="tarjeta hidden w-[76px] shrink-0 flex-col items-center py-4 lg:flex"
     >
       <Link href="/inbox" aria-label={branding.name} title={branding.name} className="rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -465,7 +477,7 @@ function Riel({
       </Link>
       <div className="mt-7 flex min-h-0 flex-1 flex-col items-center gap-2.5 overflow-y-auto">
         {groups.map((g, i) => (
-          <div key={g.title ?? i} className="flex flex-col items-center gap-2.5">
+          <div key={g.titleKey ?? i} className="flex flex-col items-center gap-2.5">
             {i > 0 && <span className="my-0.5 h-px w-6 bg-border" aria-hidden />}
             {g.items.map(boton)}
           </div>
@@ -473,12 +485,12 @@ function Riel({
       </div>
       <div className="mt-3 flex flex-col items-center gap-2.5">
         <span className="flex h-11 w-11 items-center justify-center">{campana}</span>
-        {boton(SETTINGS_ITEM)}
+        {puedeConfigurar && boton(SETTINGS_ITEM)}
         <div ref={cuentaRef} className="relative">
           <button
             type="button"
             onClick={() => setCuenta((v) => !v)}
-            aria-label="Tu cuenta"
+            aria-label={t("account")}
             aria-expanded={cuenta}
             aria-haspopup="dialog"
             title={userName}
@@ -489,17 +501,17 @@ function Riel({
           {cuenta && (
             <div
               role="dialog"
-              aria-label="Tu cuenta"
+              aria-label={t("account")}
               className="absolute bottom-0 left-full z-50 ml-3 w-64 space-y-1 rounded-2xl border bg-popover p-2 text-popover-foreground shadow-pop"
             >
               <div className="px-2.5 pb-1.5 pt-1">
                 <p className="truncate text-[14px] font-semibold">{userName}</p>
                 <p className="text-[12px] text-text-3">
-                  {role === "owner" ? "Propietario" : "Equipo"} · En línea
+                  {role === "owner" ? t("roleOwner") : t("roleMember")} · {t("online")}
                 </p>
               </div>
               <div className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-[13.5px] text-text-2">
-                Tema
+                {t("theme")}
                 <ThemeToggle initial={apariencia} />
               </div>
               <BotonActivarAvisos className={navItemClass(false)} />
@@ -510,7 +522,7 @@ function Riel({
                 className={cn(navItemClass(false), "w-full")}
               >
                 <LogOut className="h-5 w-5 shrink-0 text-text-3" strokeWidth={1.8} aria-hidden />
-                Cerrar sesión
+                {t("logout")}
               </button>
               <p className="px-2.5 pb-1 pt-1.5 font-mono text-[10.5px] tracking-[0.06em] text-text-2" title={versionTitulo}>
                 {version}

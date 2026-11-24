@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { MessageCircle, Search } from "lucide-react";
 import { ATAJOS, esAyuda, esBarraDeComandos, esCampoDeTexto } from "@/lib/atajos";
 import { urlDeConversacion } from "@/lib/avisos-sistema";
@@ -77,6 +78,7 @@ function BarraDeComandos({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const t = useTranslations("nav");
   const [q, setQ] = useState("");
   const [activo, setActivo] = useState(0);
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
@@ -103,14 +105,14 @@ function BarraDeComandos({
 
   const resultados = useMemo<Resultado[]>(() => {
     const pantallas = [...appNavGroups({ agenda, role }).flatMap((g) => g.items), SETTINGS_ITEM]
-      .filter((item) => matchesQuery(q, { text: [item.label] }))
+      .filter((item) => matchesQuery(q, { text: [t(item.labelKey)] }))
       .map((item) => ({ clase: "pantalla" as const, item }));
     const convs = conversaciones
       .filter((c) => matchesQuery(q, { text: [c.contact.name], phone: c.contact.phone }))
       .slice(0, MAX_CONVERSACIONES)
       .map((conv) => ({ clase: "conversacion" as const, conv }));
     return [...pantallas, ...convs];
-  }, [q, conversaciones, agenda, role]);
+  }, [q, conversaciones, agenda, role, t]);
 
   useEffect(() => setActivo(0), [q]);
   useEffect(() => {
@@ -195,7 +197,7 @@ function BarraDeComandos({
                   <MessageCircle className="h-4 w-4 shrink-0 text-text-3" strokeWidth={1.8} aria-hidden />
                 )}
                 <span className="min-w-0 flex-1 truncate">
-                  {r.clase === "pantalla" ? r.item.label : r.conv.contact.name}
+                  {r.clase === "pantalla" ? t(r.item.labelKey) : r.conv.contact.name}
                 </span>
                 {r.clase === "conversacion" && r.conv.contact.phone && (
                   <span className="shrink-0 font-mono text-[11px] text-text-3">{r.conv.contact.phone}</span>

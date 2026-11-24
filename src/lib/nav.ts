@@ -24,22 +24,23 @@ import { canConfigure } from "@/lib/auth/roles";
 
 export type NavItem = {
   href: string;
-  label: string;
+  /** Clave de i18n bajo `nav.*` (por ejemplo `inbox`, `pipeline`). */
+  labelKey: string;
   icon: LucideIcon;
   /** Muestra el contador de no leídos (solo la Bandeja). */
   badge?: boolean;
 };
 
 export type NavGroup = {
-  /** Encabezado pequeño; sin él, el grupo es una entrada suelta. */
-  title?: string;
+  /** Clave de i18n bajo `nav.*` para el encabezado pequeño. */
+  titleKey?: string;
   items: NavItem[];
 };
 
 /** La única entrada que va abajo, separada del resto. */
 export const SETTINGS_ITEM: NavItem = {
   href: "/settings",
-  label: "Ajustes",
+  labelKey: "settings",
   icon: Settings,
 };
 
@@ -57,36 +58,44 @@ export function appNavGroups({
   role?: string | null;
 }): NavGroup[] {
   const trabajo: NavItem[] = [
-    { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
-    { href: "/pipeline", label: "Pipeline", icon: Kanban },
-    { href: "/contacts", label: "Contactos", icon: Users },
+    { href: "/inbox", labelKey: "inbox", icon: Inbox, badge: true },
+    { href: "/pipeline", labelKey: "pipeline", icon: Kanban },
+    { href: "/contacts", labelKey: "contacts", icon: Users },
   ];
+
+  // Miembro: solo las tres pestañas de trabajo. Sin Citas, sin Agente,
+  // sin Laboratorio, sin Resultados; Ajustes queda oculto por el componente.
+  if (!canConfigure(role)) {
+    return [{ titleKey: "groupWork", items: trabajo }];
+  }
+
   // Citas va después de Contactos: es el paso siguiente de un trato, no una
   // sección aparte.
-  if (agenda) trabajo.push({ href: "/bookings", label: "Citas", icon: CalendarDays });
+  if (agenda) trabajo.push({ href: "/bookings", labelKey: "bookings", icon: CalendarDays });
 
-  const agente: NavItem[] = [];
-  // Un miembro del equipo no puede hacer ninguno de los pasos de la guía.
-  if (canConfigure(role)) {
-    agente.push({ href: "/onboarding", label: "Guía de inicio", icon: ListChecks });
-  }
-  agente.push(
-    { href: "/agent", label: "Agente", icon: Sparkles },
-    { href: "/lab", label: "Laboratorio", icon: FlaskConical }
-  );
+  const agente: NavItem[] = [
+    { href: "/onboarding", labelKey: "onboarding", icon: ListChecks },
+    { href: "/agent", labelKey: "agent", icon: Sparkles },
+    { href: "/lab", labelKey: "lab", icon: FlaskConical },
+  ];
 
   return [
-    { title: "Trabajo", items: trabajo },
-    { title: "Agente", items: agente },
+    { titleKey: "groupWork", items: trabajo },
+    { titleKey: "groupAgent", items: agente },
     // 019 — Se mide al final: primero se atiende y se organiza.
-    { items: [{ href: "/results", label: "Resultados", icon: ChartColumn }] },
+    { items: [{ href: "/results", labelKey: "results", icon: ChartColumn }] },
   ];
 }
 
-export type SettingsLink = { href: string; label: string };
+export type SettingsLink = {
+  href: string;
+  /** Clave bajo `settings.linkX`. */
+  labelKey: string;
+};
 
 export type SettingsSection = {
-  title: string;
+  /** Clave bajo `settings.sectionX`. */
+  titleKey: string;
   links: SettingsLink[];
 };
 
@@ -120,32 +129,34 @@ export function settingsSections({
   // 023 — "Estado" reúne todos los canales; con WhatsApp solo no aporta nada
   // que su pantalla no diga, así que no existe (ADR-001).
   if (instagram || messenger || tiktok) {
-    canales.push({ href: "/settings/channels", label: "Estado" });
+    canales.push({ href: "/settings/channels", labelKey: "linkStatus" });
   }
-  canales.push({ href: "/settings/whatsapp", label: "WhatsApp" });
-  if (instagram) canales.push({ href: "/settings/instagram", label: "Instagram" });
-  if (messenger) canales.push({ href: "/settings/messenger", label: "Messenger" });
-  if (tiktok) canales.push({ href: "/settings/tiktok", label: "TikTok" });
+  canales.push({ href: "/settings/whatsapp", labelKey: "linkWhatsapp" });
+  if (instagram) canales.push({ href: "/settings/instagram", labelKey: "linkInstagram" });
+  if (messenger) canales.push({ href: "/settings/messenger", labelKey: "linkMessenger" });
+  if (tiktok) canales.push({ href: "/settings/tiktok", labelKey: "linkTiktok" });
 
   // #85 — el proveedor de IA se configura aquí; el entorno queda de respaldo.
-  const agente: SettingsLink[] = [{ href: "/settings/ai", label: "IA" }];
-  if (agenda) agente.push({ href: "/settings/calendar", label: "Agenda" });
+  const agente: SettingsLink[] = [{ href: "/settings/ai", labelKey: "linkAi" }];
+  if (agenda) agente.push({ href: "/settings/calendar", labelKey: "linkCalendar" });
 
   const negocio: SettingsLink[] = [
-    { href: "/settings/branding", label: "Marca" },
+    { href: "/settings/branding", labelKey: "linkBranding" },
     // 062 — Tema, letra, tamaño y densidad (cada quien la suya).
-    { href: "/settings/appearance", label: "Apariencia" },
-    { href: "/settings/templates", label: "Plantillas" },
+    { href: "/settings/appearance", labelKey: "linkAppearance" },
+    // 069 — Idioma de la UI para todo el equipo.
+    { href: "/settings/language", labelKey: "linkLanguage" },
+    { href: "/settings/templates", labelKey: "linkTemplates" },
     // 049 — lo que el equipo inserta con «/atajo» en la Bandeja.
-    { href: "/settings/quick-replies", label: "Respuestas rápidas" },
-    { href: "/settings/team", label: "Equipo" },
+    { href: "/settings/quick-replies", labelKey: "linkQuickReplies" },
+    { href: "/settings/team", labelKey: "linkTeam" },
   ];
-  if (atribucion) negocio.push({ href: "/settings/ads", label: "Anuncios" });
+  if (atribucion) negocio.push({ href: "/settings/ads", labelKey: "linkAds" });
 
   return [
-    { title: "Canales", links: canales },
-    { title: "Agente", links: agente },
-    { title: "Negocio", links: negocio },
+    { titleKey: "sectionChannels", links: canales },
+    { titleKey: "sectionAgent", links: agente },
+    { titleKey: "sectionBusiness", links: negocio },
   ];
 }
 

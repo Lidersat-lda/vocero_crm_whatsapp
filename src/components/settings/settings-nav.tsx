@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { settingsSections } from "@/lib/nav";
 
@@ -29,24 +30,26 @@ export function SettingsNav({
   tiktok?: boolean;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("settings");
+  const navT = useTranslations("nav");
   const sections = settingsSections({ agenda, atribucion, instagram, messenger, tiktok });
   return (
     <nav
-      aria-label="Ajustes"
+      aria-label={navT("settings")}
       className="flex shrink-0 gap-4 overflow-x-auto border-b px-2 py-2 sm:w-48 sm:flex-col sm:gap-5 sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3"
     >
       {sections.map((section) => (
         <div
-          key={section.title}
+          key={section.titleKey}
           className="flex shrink-0 items-center gap-1 sm:flex-col sm:items-stretch sm:gap-0.5"
         >
-          <span className="kicker mr-1 shrink-0 sm:mb-1 sm:mr-0 sm:px-3">{section.title}</span>
-          {section.links.map((t) => {
-            const active = pathname.startsWith(t.href);
+          <span className="kicker mr-1 shrink-0 sm:mb-1 sm:mr-0 sm:px-3">{t(section.titleKey)}</span>
+          {section.links.map((link) => {
+            const active = pathname.startsWith(link.href);
             return (
               <Link
-                key={t.href}
-                href={t.href}
+                key={link.href}
+                href={link.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "block shrink-0 whitespace-nowrap rounded-sm px-3 py-2 text-[13.5px] font-semibold transition-colors",
@@ -56,7 +59,7 @@ export function SettingsNav({
                     : "text-text-2 hover:bg-accent hover:text-foreground"
                 )}
               >
-                {t.label}
+                {t(link.labelKey)}
               </Link>
             );
           })}
