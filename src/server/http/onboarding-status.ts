@@ -1,6 +1,6 @@
 import { conSesion } from "@/server/http/compartido";
 import { apiError } from "@/lib/api";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 import { guideFrom } from "@/server/onboarding/guide";
 import { onboardingStatus } from "@/server/onboarding/status";
 
@@ -11,7 +11,7 @@ import { onboardingStatus } from "@/server/onboarding/status";
  * igual que la pantalla. Ver `server/onboarding/`.
  */
 export const GET = conSesion(async (session) => {
-  if (!canConfigure(session.role)) {
+  if (!canAccessAdvanced(session.role)) {
     return apiError(403, "forbidden", "Solo el propietario configura la instancia");
   }
   const status = await onboardingStatus(session.organizationId);

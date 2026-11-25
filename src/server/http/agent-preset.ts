@@ -1,7 +1,7 @@
 import { conSesion } from "@/server/http/compartido";
 import { z } from "zod";
 import { apiError, parseBody } from "@/lib/api";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { ROLES, type ClaveRol } from "@/lib/agent-roles";
@@ -17,7 +17,7 @@ const bodySchema = z.object({
  * pantalla lo confirma antes). Las personas del Laboratorio salen del rol.
  */
 export const POST = conSesion(async (session, req: Request) => {
-  if (!canConfigure(session.role)) {
+  if (!canAccessAdvanced(session.role)) {
     return apiError(403, "forbidden", "Solo quien administra puede cargar un rol");
   }
   const body = await parseBody(req, bodySchema);

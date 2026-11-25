@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 import { newId } from "@/lib/db/ids";
 import { construirEventoOlvido } from "@/server/brains/contract";
 import { avisarOlvido, type ResultadoOlvido } from "@/server/brains/deliver";
@@ -54,7 +54,7 @@ const FECHA_DE_CITA = new Intl.DateTimeFormat("es-MX", { dateStyle: "long" });
  * (propietario o administrador) y no solo operar la bandeja.
  */
 export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
-  if (!canConfigure(session.role)) {
+  if (!canAccessAdvanced(session.role)) {
     return apiError(
       403,
       "forbidden",

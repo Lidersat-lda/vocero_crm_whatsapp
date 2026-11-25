@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { OnboardingClient } from "@/components/onboarding/onboarding-client";
 import { getSessionOrNull } from "@/lib/auth/session";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { guideStatus } from "@/server/onboarding/guide";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function OnboardingPage() {
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
-  if (!canConfigure(session.role)) redirect("/inbox");
+  if (!canAccessAdvanced(session.role)) redirect("/inbox");
   const [guide, [profile]] = await Promise.all([
     guideStatus(session.organizationId),
     getDb()

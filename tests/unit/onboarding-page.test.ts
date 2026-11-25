@@ -32,10 +32,11 @@ vi.mock("@/lib/db", () => ({
 
 import OnboardingPage from "@/app/(app)/onboarding/page";
 import Home from "@/app/page";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced, canConfigure } from "@/lib/auth/roles";
 
 const owner = { userId: "usr_1", organizationId: "org_1", role: "owner" };
-const member = { userId: "usr_2", organizationId: "org_1", role: "member" };
+const admin = { userId: "usr_3", organizationId: "org_1", role: "admin" };
+const operator = { userId: "usr_2", organizationId: "org_1", role: "operator" };
 
 beforeEach(() => {
   getSessionOrNull.mockReset();
@@ -44,11 +45,18 @@ beforeEach(() => {
 });
 
 describe("quién configura", () => {
-  it("el propietario y un admin; un miembro del equipo no", () => {
+  it("solo el propietario accede a Configuraciones", () => {
     expect(canConfigure("owner")).toBe(true);
-    expect(canConfigure("admin")).toBe(true);
-    expect(canConfigure("member")).toBe(false);
+    expect(canConfigure("admin")).toBe(false);
+    expect(canConfigure("operator")).toBe(false);
     expect(canConfigure(undefined)).toBe(false);
+  });
+
+  it("owner y admin acceden a funciones avanzadas; operator no", () => {
+    expect(canAccessAdvanced("owner")).toBe(true);
+    expect(canAccessAdvanced("admin")).toBe(true);
+    expect(canAccessAdvanced("operator")).toBe(false);
+    expect(canAccessAdvanced(undefined)).toBe(false);
   });
 });
 
@@ -58,10 +66,18 @@ describe("/onboarding", () => {
     await expect(OnboardingPage()).rejects.toThrow("redirect:/login");
   });
 
-  it("un miembro del equipo va a la Bandeja: no puede hacer ningún paso", async () => {
-    getSessionOrNull.mockResolvedValue(member);
+  it("un operador del equipo va a la Bandeja: no puede hacer ningún paso", async () => {
+    getSessionOrNull.mockResolvedValue(operator);
     await expect(OnboardingPage()).rejects.toThrow("redirect:/inbox");
     expect(guideStatus).not.toHaveBeenCalled();
+  });
+
+  it("un admin ve la guía igual que el propietario", async () => {
+    getSessionOrNull.mockResolvedValue(admin);
+    guideStatus.mockResolvedValue({ steps: [], complete: false, enabled: false });
+    const page = (await OnboardingPage()) as { props: { agentName: string | null } };
+    expect(guideStatus).toHaveBeenCalledWith("org_1");
+    expect(page.props.agentName).toBe("Sofi");
   });
 
   it("el propietario ve la guía resuelta en el servidor", async () => {

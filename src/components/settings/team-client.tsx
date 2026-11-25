@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+type AssignableRole = "admin" | "operator";
 type Member = {
   id: string;
   role: string;
@@ -17,14 +18,22 @@ type Member = {
   createdAt: string;
 };
 
+function roleLabel(role: string): string {
+  if (role === "owner") return "Propietario";
+  if (role === "admin") return "Administrador";
+  return "Operador";
+}
+
 export function TeamClient() {
   const [members, setMembers] = useState<Member[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<AssignableRole>("operator");
   const [tempPassword, setTempPassword] = useState("");
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<Record<string, boolean>>({});
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/settings/team").catch(() => null);
@@ -54,7 +63,7 @@ export function TeamClient() {
     const res = await fetch("/api/settings/team", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email, password: tempPassword }),
+      body: JSON.stringify({ name, email, password: tempPassword, role }),
     }).catch(() => null);
     setSaving(false);
     if (!res?.ok) {
@@ -67,8 +76,24 @@ export function TeamClient() {
     setCreated({ email, password: tempPassword });
     setName("");
     setEmail("");
+    setRole("operator");
     setTempPassword("");
     void refetch();
+  }
+
+  async function updateRole(memberId: string, next: AssignableRole) {
+    setEditing((prev) => ({ ...prev, [memberId]: true }));
+    const res = await fetch(`/api/settings/team?memberId=${encodeURIComponent(memberId)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: next }),
+    }).catch(() => null);
+    setEditing((prev) => ({ ...prev, [memberId]: false }));
+    if (res?.ok) {
+      setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role: next } : m)));
+    } else {
+      void refetch();
+    }
   }
 
   return (
@@ -100,6 +125,18 @@ export function TeamClient() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="team-role">Rol</Label>
+            <select
+              id="team-role"
+              value={role}
+              onChange={(e) => setRole(e.target.value as AssignableRole)}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="operator">Operador — Bandeja, Pipeline, Contactos</option>
+              <option value="admin">Administrador — además Agente, Laboratorio, Resultados</option>
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="team-password">Contraseña temporal</Label>
@@ -143,21 +180,35 @@ export function TeamClient() {
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Miembros
         </p>
-        {members.map((m) => (
-          <div
-            key={m.id}
-            className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
-          >
-            <ContactAvatar name={m.name} seed={m.id} size="sm" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{m.name}</p>
-              <p className="text-xs text-muted-foreground">{m.email}</p>
+        {members.map((m) => {
+          const isOwner = m.role === "owner";
+          const normalized: AssignableRole = m.role === "admin" ? "admin" : "operator";
+          return (
+            <div
+              key={m.id}
+              className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3"
+            >
+              <ContactAvatar name={m.name} seed={m.id} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{m.name}</p>
+                <p className="text-xs text-muted-foreground">{m.email}</p>
+              </div>
+              {isOwner ? (
+                <Badge variant="default">{roleLabel(m.role)}</Badge>
+              ) : (
+                <select
+                  disabled={editing[m.id]}
+                  value={normalized}
+                  onChange={(e) => void updateRole(m.id, e.target.value as AssignableRole)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+                >
+                  <option value="operator">Operador</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              )}
             </div>
-            <Badge variant={m.role === "owner" ? "default" : "secondary"}>
-              {m.role === "owner" ? "Propietario" : "Miembro"}
-            </Badge>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

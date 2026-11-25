@@ -1,5 +1,5 @@
 import type { SessionContext } from "@/lib/auth/session";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 import {
   onboardingStatus,
   type OnboardingStatus,
@@ -145,7 +145,7 @@ export async function guideStatus(organizationId: string): Promise<Guide> {
 export async function guideFirst(
   session: Pick<SessionContext, "organizationId" | "role">
 ): Promise<boolean> {
-  if (!canConfigure(session.role)) return false;
+  if (!canAccessAdvanced(session.role)) return false;
   const guide = await guideStatus(session.organizationId);
   // 036 — Una bandeja manual (sin cerebro) no se queda atrapada en la guía.
   return !guide.complete || (guide.brainConnected && !guide.enabled);

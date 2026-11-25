@@ -10,7 +10,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 
 /**
  * #87 — El modelo del menú, separado del componente que lo pinta.
@@ -63,9 +63,10 @@ export function appNavGroups({
     { href: "/contacts", labelKey: "contacts", icon: Users },
   ];
 
-  // Miembro: solo las tres pestañas de trabajo. Sin Citas, sin Agente,
-  // sin Laboratorio, sin Resultados; Ajustes queda oculto por el componente.
-  if (!canConfigure(role)) {
+  // Operador: solo las tres pestañas de trabajo. Sin Citas, sin Agente,
+  // sin Laboratorio, sin Resultados; Ajustes lo oculta el componente
+  // (visible solo para owner).
+  if (!canAccessAdvanced(role)) {
     return [{ titleKey: "groupWork", items: trabajo }];
   }
 

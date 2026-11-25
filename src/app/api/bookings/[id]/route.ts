@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 import { agendaDisabledResponse, agendaEnabled } from "@/server/agenda/flag";
 import {
   cancelBooking,
@@ -29,7 +29,7 @@ const patchSchema = z.discriminatedUnion("action", [
  * el enlace que el proveedor no entregó.
  */
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
-  if (!canConfigure(session.role)) return apiError(403, "forbidden", "Solo quien configura agenda citas.");
+  if (!canAccessAdvanced(session.role)) return apiError(403, "forbidden", "Solo quien configura agenda citas.");
   if (!agendaEnabled()) return agendaDisabledResponse();
   const { id } = await ctx.params;
   const body = await parseBody(req, patchSchema);

@@ -135,7 +135,7 @@ export async function autenticarLlave(
   const ctx: ApiSession = {
     userId: llave.createdByUserId,
     organizationId: llave.organizationId,
-    role: permitidas.includes("configure") ? role : "member",
+    role: permitidas.includes("configure") ? role : "operator",
     capabilities: permitidas,
   };
 

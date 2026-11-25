@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requireSession, UnauthorizedError, type SessionContext } from "@/lib/auth/session";
-import { canConfigure } from "@/lib/auth/roles";
+import { canAccessAdvanced } from "@/lib/auth/roles";
 
 /** Respuesta de error estándar de la API interna (contrato api.md). */
 export function apiError(
@@ -38,15 +38,16 @@ export function withAuth<Args extends unknown[]>(
 }
 
 /**
- * Igual que `withAuth`, pero exige rol de configuración (owner/admin). Un
- * miembro recibe 403. Úsalo en superficies que un miembro no debe ver
- * (Ajustes, Agente, Laboratorio, Resultados, Citas).
+ * Igual que `withAuth`, pero exige rol avanzado (owner o admin). Un operador
+ * recibe 403. Úsalo en superficies que un operador no debe ver (Agente,
+ * Laboratorio, Resultados, Citas). Para Ajustes (solo owner) usar un guard
+ * explícito con `canConfigure`.
  */
 export function withConfigurer<Args extends unknown[]>(
   handler: (session: SessionContext, ...args: Args) => Promise<Response>
 ): (...args: Args) => Promise<Response> {
   return withAuth(async (session, ...args: Args) => {
-    if (!canConfigure(session.role)) {
+    if (!canAccessAdvanced(session.role)) {
       return apiError(403, "forbidden", "Solo quien configura ve esta sección.");
     }
     return handler(session, ...args);
